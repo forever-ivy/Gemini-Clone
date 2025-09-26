@@ -106,6 +106,3 @@ npm run preview
   - switch to a cheaper model for non-critical calls
   - add retry/backoff and UX fallbacks
 
-## License
-
-Add your preferred license (e.g., MIT) in a `LICENSE` file.
