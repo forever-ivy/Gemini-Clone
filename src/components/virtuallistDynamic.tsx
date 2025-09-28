@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import type { ChatMessage } from "./chatmessage";
+import type { ChatMessage } from "../types/chat";
 
 interface VirtualListDynamicProps {
   data: ChatMessage[];
@@ -29,18 +29,22 @@ const VirtualListDynamic = ({
   );
 
   const [scrollTop, setScrollTop] = useState(0);
+  // 为高度变化引入一个版本号，用来驱动 offsetMap/totalHeight 重算
+  const [measureVersion, setMeasureVersion] = useState(0);
 
+  // useMemo to avoid recalculating offsetMap and totalHeight on every render , only for variable
   const { offsetMap, totalHeight } = useMemo(() => {
     let offset = 0;
     const map = new Map();
     for (let i = 0; i < data.length; i++) {
-      const height = heightMap.current.get(i)?.height ?? estimatedHeight;
+      const height = heightMap.current.get(i)?.height ?? estimatedHeight; //only for null and undefined
       map.set(i, { height, offsetTop: offset });
       offset += height;
     }
     return { offsetMap: map, totalHeight: offset };
-  }, [data, estimatedHeight, scrollTop]);
+  }, [data, estimatedHeight, measureVersion]); // 关键：依赖 measureVersion，确保高度更新后重算
 
+  //useCallback to avoid recalculating startIndex and endIndex on every render ,only for function
   const getStartIndex = useCallback(() => {
     let i = 0;
     while (i < data.length) {
@@ -65,8 +69,14 @@ const VirtualListDynamic = ({
   }, []);
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
     const updated = new Map(heightMap.current);
     let changed = false;
+
+    // 记录当前的 topPadding，用于补偿计算
+    const oldTopPadding = topPadding;
 
     for (let i = startIndex; i < endIndex; i++) {
       const element = itemRefs.current[i];
@@ -84,9 +94,29 @@ const VirtualListDynamic = ({
 
     if (changed) {
       heightMap.current = updated;
-      setScrollTop((prev) => prev! + 0.001);
+
+      // 立即重新计算新的 offsetMap
+      let offset = 0;
+      const newOffsetMap = new Map();
+      for (let i = 0; i < data.length; i++) {
+        const height = heightMap.current.get(i)?.height ?? estimatedHeight;
+        newOffsetMap.set(i, { height, offsetTop: offset });
+        offset += height;
+      }
+
+      // 计算新的 topPadding
+      const newTopPadding = newOffsetMap.get(startIndex)?.offsetTop ?? 0;
+      const delta = newTopPadding - oldTopPadding;
+
+      // 立即补偿滚动位置，防止跳动
+      if (delta !== 0) {
+        container.scrollTop += delta;
+      }
+
+      // 触发重新渲染
+      setMeasureVersion((v) => v + 1);
     }
-  }, [startIndex, endIndex]);
+  }, [startIndex, endIndex, topPadding, data, estimatedHeight]);
 
   const FADE = 90;
 
@@ -119,7 +149,9 @@ const VirtualListDynamic = ({
             return (
               <div
                 key={index}
-                ref={(el) => (itemRefs.current[index] = el)}
+                ref={(el) => {
+                  itemRefs.current[index] = el;
+                }}
                 className="mb-1"
               >
                 {renderItem?.(item, index)}

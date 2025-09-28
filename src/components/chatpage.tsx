@@ -1,4 +1,4 @@
-import GradientText from "../lib/GradientText";
+import GradientText from "./GradientText";
 import { useEffect, useState, useRef } from "react";
 import { useLocalStorage } from "react-use";
 import { promptStore } from "../store/prompt";
@@ -33,8 +33,9 @@ const ChatPage = () => {
     }
   }, [answerResponse]);
 
-  const handleClick = async (promptArg: string) => {
-    if (!promptArg.trim()) {
+  const handleClick = async (promptArg?: string) => {
+    const prompt = promptArg || inputValue;
+    if (!prompt.trim()) {
       return;
     }
 
@@ -50,7 +51,9 @@ const ChatPage = () => {
       setIsAnswer(false);
       setInputValue("");
       console.log("API调用成功");
-      await callAPI(promptArg, controller.signal);
+      // 先更新 prompt，再调用 API
+      setPrompt(prompt);
+      await callAPI(prompt, controller.signal);
       console.log("Api end");
     } catch (error: unknown) {
       if (error instanceof Error && error.message === "Request aborted") {

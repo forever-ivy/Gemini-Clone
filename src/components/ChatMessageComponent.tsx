@@ -2,13 +2,7 @@ import Lottie from "lottie-react";
 import geminiAnimation from "../assets/7128590d/gemini-logo.json";
 import React from "react";
 import { LoadingStore } from "../store/loading";
-
-// 聊天消息数据类型
-export interface ChatMessage {
-  id: string;
-  content: string | React.ReactNode;
-  sender: "user" | "ai";
-}
+import type { ChatMessage } from "../types/chat";
 
 const ChatMessageComponent: React.FC<{ item: ChatMessage }> = ({ item }) => {
   const { isLoading } = LoadingStore();
@@ -101,9 +95,9 @@ const ChatMessageComponent: React.FC<{ item: ChatMessage }> = ({ item }) => {
               </>
             )}
             <div
-              className={`${
+              className={`font-apple text-lg leading-loose ${
                 item.sender === "user" ? "" : "pt-[20px]"
-              } font-apple text-lg leading-loose`}
+              }`}
             >
               {item.content}
             </div>
@@ -114,8 +108,4 @@ const ChatMessageComponent: React.FC<{ item: ChatMessage }> = ({ item }) => {
   );
 };
 
-const renderChatMessage = (item: ChatMessage) => (
-  <ChatMessageComponent item={item} />
-);
-
-export default renderChatMessage;
+export default ChatMessageComponent;

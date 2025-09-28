@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocalStorage } from "react-use";
-import VirtualListDynamic from "../lib/virtuallist2";
-import renderChatMessage from "../lib/chatmessage";
-import type { ChatMessage } from "../lib/chatmessage";
+import VirtualListDynamic from "./virtuallistDynamic";
+import ChatMessageComponent from "./ChatMessageComponent";
+import type { ChatMessage } from "../types/chat";
 import { promptStore } from "../store/prompt";
 import { ResponseStore } from "../store/response";
 import { LoadingStore } from "../store/loading";
@@ -10,43 +10,18 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const ChatList: React.FC = () => {
-  const initialMessages: ChatMessage[] = [
-    // {
-    //   id: `ai-welcome-${Date.now()}`,
-    //   content: (
-    //     <Markdown remarkPlugins={[remarkGfm]}>
-    //       {`**欢迎！** 我可以帮你解释知识点、写代码、生成内容等。\n\n- 直接输入你的问题即可开始\n- 支持 Markdown 展示（代码块、列表、表格等）`}
-    //     </Markdown>
-    //   ),
-    //   sender: "ai" as const,
-    // },
-    // {
-    //   id: `user-example-${Date.now()}`,
-    //   content: "为什么在冬天能看见自己的呼吸？",
-    //   sender: "user" as const,
-    // },
-    // {
-    //   id: `ai-example-${Date.now()}`,
-    //   content: (
-    //     <Markdown remarkPlugins={[remarkGfm]}>
-    //       {`当然可以！当外界温度较低时，呼出的**湿热空气**遇冷会迅速降温，水汽无法继续以气体形式存在，便会**凝结成微小水滴**，看起来像一团"白雾"。\n\n**要点总结：**\n- 冷空气含水能力弱\n- 湿热空气降温后水汽凝结\n- 形成可见的微小水滴（雾）`}
-    //     </Markdown>
-    //   ),
-    //   sender: "ai" as const,
-    // },
-  ];
+  const initialMessages: ChatMessage[] = [];
 
-  // 使用 useLocalStorage 管理聊天消息
-  const [storedMessages, setStoredMessages] = useLocalStorage<any[]>(
+  //use localstorage to store chat messages ,avoid refresh to let the message disappear
+  const [storedMessages, setStoredMessages] = useLocalStorage<ChatMessage[]>(
     "chatMessages",
     []
   );
 
-  // 初始化消息状态
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (storedMessages && storedMessages.length > 0) {
-      // 从存储中恢复消息，重新渲染 Markdown
-      return storedMessages.map((msg: any) => ({
+      // if there is message in localstorage ,return the message with markdown
+      return storedMessages.map((msg: ChatMessage) => ({
         ...msg,
         content:
           msg.sender === "ai" && typeof msg.content === "string" ? (
@@ -56,26 +31,40 @@ const ChatList: React.FC = () => {
           ),
       }));
     }
+
+    //if not , return empty ,to fit Ts's requirements,return the type of <ChatMessage>
     return initialMessages;
   });
 
+  //use zustand
   const { contextprompt } = promptStore();
   const { answerResponse, setAnswerResponse } = ResponseStore();
   const { isLoading, setIsLoading } = LoadingStore();
+
   const waitingForResponseRef = useRef<boolean>(false);
 
   // 保存消息到 localStorage 的辅助函数
   const saveMessages = (msgs: ChatMessage[]) => {
-    const serializedMessages = msgs.map((msg) => ({
-      ...msg,
-      content:
-        typeof msg.content === "string"
-          ? msg.content
-          : msg.sender === "ai" && React.isValidElement(msg.content)
-          ? // 如果是React元素，提取其中的文本内容
-            msg.content.props?.children
-          : msg.content,
-    }));
+    const serializedMessages = msgs.map((msg) => {
+      const { content, sender } = msg;
+      let finalContent = content;
+
+      // 检查是否是AI消息，并且内容是一个包含 children prop 的React组件
+      if (
+        sender === "ai" &&
+        React.isValidElement<{ children: React.ReactNode }>(content)
+      ) {
+        // 如果是，就从组件的props中提取原始的文本内容
+        finalContent = content.props.children;
+      }
+
+      // 对于其他情况（如用户消息或AI的加载占位符），content本身就是字符串，无需处理
+
+      return {
+        ...msg,
+        content: finalContent,
+      };
+    });
     setStoredMessages(serializedMessages);
   };
 
@@ -149,13 +138,14 @@ const ChatList: React.FC = () => {
   }, [answerResponse, isLoading, setIsLoading]);
 
   return (
-    <VirtualListDynamic
-      containerHeight={540}
-      estimatedHeight={120}
-      data={messages}
-      renderItem={renderChatMessage}
-      overscan={3}
-    />
+    <div className="flex flex-col h-full">
+      <VirtualListDynamic
+        data={messages}
+        estimatedHeight={120}
+        containerHeight={600}
+        renderItem={(item) => <ChatMessageComponent item={item} />}
+      />
+    </div>
   );
 };
 
